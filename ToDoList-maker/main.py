@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from datetime import datetime
 
+
 # initialize flask app
 app = Flask(__name__)
 
@@ -46,19 +47,23 @@ todolist_schema = ToDoListSchema(many=False)
 todolist_schemas = ToDoListSchema(many=True)
 
 
+
 @app.route("/todolist", methods=["POST"])
 def add_todo():
-    try:
-        name = request.json["name"]
-        description = request.json["description"]
+    # if authored():
+        try:
+            name = request.json["name"]
+            description = request.json["description"]
 
-        new_todo = ToDoList(name=name, description=description)
-        db.session.add(new_todo)
-        db.session.commit()
+            new_todo = ToDoList(name=name, description=description)
+            db.session.add(new_todo)
+            db.session.commit()
 
-        return todolist_schema.jsonify(new_todo)
-    except Exception as e:
-        return jsonify({"Error": "Invalid Request."})
+            return todolist_schema.jsonify(new_todo)
+        except Exception as e:
+            return jsonify({"Error": "Invalid Request."})
+    # else:
+    #     return jsonify({"Error": "Please authenticate."})
 
 
 @app.route("/todolist", methods=["GET"])
@@ -68,13 +73,13 @@ def get_todos():
     return jsonify(result_set)
 
 
-@app.route("/todolist/<int:id>", methods=["GET"])
+@app.route("/todolist/<int:todo_id>", methods=["GET"])
 def get_todo(todo_id):
     todo = ToDoList.query.get_or_404(int(todo_id))
     return todolist_schema.jsonify(todo)
 
 
-@app.route("/todolist/<int:id>", methods=["PUT"])
+@app.route("/todolist/<int:todo_id>", methods=["PUT"])
 def update_todo(todo_id):
     todo = ToDoList.query.get_or_404(int(todo_id))
 
@@ -91,7 +96,7 @@ def update_todo(todo_id):
     return todolist_schema.jsonify(todo)
 
 
-@app.route("/todolist/<int:id>", methods=["DELETE"])
+@app.route("/todolist/<int:todo_id>", methods=["DELETE"])
 def delete_todo(todo_id):
     todo = ToDoList.query.get_or_404(int(todo_id))
     db.session.delete(todo)
