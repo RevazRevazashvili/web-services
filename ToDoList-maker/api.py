@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 import datetime
 from functools import wraps
+from sqlalchemy import and_
 
 app = Flask(__name__)
 
@@ -35,15 +36,24 @@ def token_required(f):
         if 'x-access-token' in request.headers:
             token = request.headers['x-access-token']
         if not token:
-            return jsonify({"message": "token is missing!"}), 401
+            print("Token is missing!")
+            return jsonify({"message": "Token is missing!"}), 401
         try:
-            data = jwt.decode(token, app.config['SECRET_KEY'])
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
             current_user = User.query.filter_by(public_id=data['public_id']).first()
-        except:
-            return jsonify({"message": "token is missing!"}), 401
-
+            print("Decoded data:", data)
+            print("Current user:", current_user)
+        except jwt.ExpiredSignatureError:
+            print("Token has expired!")
+            return jsonify({"message": "Token has expired!"}), 401
+        except jwt.InvalidTokenError:
+            print("Invalid token!")
+            return jsonify({"message": "Invalid token!"}), 401
         return f(current_user, *args, **kwargs)
+
     return decorated
+
+
 
 @app.route('/user', methods=['GET'])
 @token_required
@@ -91,7 +101,7 @@ def create_user(current_user):
 
     data = request.get_json()
 
-    hashed_password = generate_password_hash(data['password'], method='sha256')
+    hashed_password = generate_password_hash(data['password'])
 
     new_user = User(public_id=str(uuid.uuid4()), name=data['name'], password=hashed_password, admin=False)
     db.session.add(new_user)
@@ -141,18 +151,20 @@ def login():
     print(f"Authorization Object: {auth}")
 
     if not auth or not auth.username or not auth.password:
-        return make_response('could not verify', 401, {'www-Authenticate': 'Basic realm=Login required!'})
+        return make_response('could not verify', 401, {'WWW-Authenticate': 'Basic realm=Login required!'})
 
     user = User.query.filter_by(name=auth.username).first()
 
     if not user:
-        return make_response('could not verify', 401, {'www-Authenticate': 'Basic realm=Login required!'})
+        return make_response('could not verify', 401, {'WWW-Authenticate': 'Basic realm=Login required!'})
 
     if check_password_hash(user.password, auth.password):
         token = jwt.encode({'public_id': user.public_id, 'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
 
-        return jsonify({'token': token.decode('UTF-8')})
-    return make_response('could not verify', 401, {'www-Authenticate': 'Basic realm=Login required!'})
+        # Return the token directly without decoding
+        return jsonify({'token': token})
+
+    return make_response('could not verify', 401, {'WWW-Authenticate': 'Basic realm=Login required!'})
 
 
 @app.route('/todo', methods=['GET'])
@@ -164,7 +176,7 @@ def get_all_todos(current_user):
 
     for todo in todos:
         todo_data = {}
-        todo_data['id'] = todo.public_id
+        todo_data['id'] = todo.user_id
         todo_data['text'] = todo.text
         todo_data['complete'] = todo.complete
         output.append(todo_data)
@@ -174,7 +186,7 @@ def get_all_todos(current_user):
 @app.route('/todo/<todo_id>', methods=['GET'])
 @token_required
 def get_todo(current_user, todo_id):
-    todo = Todo.query.filter_by(id=todo_id, user_id=current_user).first()
+    todo = Todo.query.filter(and_(Todo.id == todo_id, Todo.user_id == current_user.id)).first()
 
     if not todo:
         return jsonify({"message": "no todo found!"})
@@ -202,7 +214,7 @@ def create_todo(current_user):
 @app.route('/todo/<todo_id>', methods=['PUT'])
 @token_required
 def complete_todo(current_user, todo_id):
-    todo = Todo.query.filter_by(id=todo_id, user_id=current_user.id).first()
+    todo = Todo.query.filter(and_(Todo.id == todo_id, Todo.user_id == current_user.id)).first()
 
     if not todo:
         return jsonify({"message": "no todo found"})
@@ -216,7 +228,7 @@ def complete_todo(current_user, todo_id):
 @app.route('/todo/<todo_id>', methods=['DELETE'])
 @token_required
 def delete_todo(current_user, todo_id):
-    todo = Todo.query.filter_by(id=todo_id, user_id=current_user.id).first()
+    todo = Todo.query.filter(and_(Todo.id == todo_id, Todo.user_id == current_user.id)).first()
 
     if not todo:
         return jsonify({"message": "no todo found"})
