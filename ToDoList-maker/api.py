@@ -23,7 +23,7 @@ class User(db.Model):
     admin = db.Column(db.Boolean)
 
 class Todo(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     text = db.Column(db.String(50))
     user_id = db.Column(db.Integer)
     complete = db.Column(db.Boolean)
@@ -176,7 +176,7 @@ def get_all_todos(current_user):
 
     for todo in todos:
         todo_data = {}
-        todo_data['id'] = todo.user_id
+        todo_data['id'] = todo.id
         todo_data['text'] = todo.text
         todo_data['complete'] = todo.complete
         output.append(todo_data)
@@ -192,7 +192,7 @@ def get_todo(current_user, todo_id):
         return jsonify({"message": "no todo found!"})
 
     todo_data = {}
-    todo_data['id'] = todo.public_id
+    todo_data['id'] = todo.todo_id
     todo_data['text'] = todo.text
     todo_data['complete'] = todo.complete
 
